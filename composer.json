@@ -1,0 +1,47 @@
+{
+    "name": "iletiniz/sdk",
+    "description": "Iletiniz API resmi PHP SDK'si",
+    "type": "library",
+    "license": "MIT",
+    "homepage": "https://github.com/iletiniz/iletiniz-php",
+    "support": {
+        "issues": "https://github.com/iletiniz/iletiniz-php/issues",
+        "source": "https://github.com/iletiniz/iletiniz-php"
+    },
+    "keywords": [
+        "iletiniz",
+        "sms",
+        "messaging",
+        "api",
+        "sdk"
+    ],
+    "authors": [
+        {
+            "name": "Iletiniz"
+        }
+    ],
+    "require": {
+        "php": ">=8.1",
+        "ext-json": "*",
+        "ext-curl": "*"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.5",
+        "phpstan/phpstan": "^1.10"
+    },
+    "autoload": {
+        "psr-4": {
+            "Iletiniz\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Iletiniz\\Tests\\": "tests/"
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true,
+    "config": {
+        "sort-packages": true
+    }
+}
