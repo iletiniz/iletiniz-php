@@ -17,6 +17,14 @@ final class ApiErrorFactory
         if (is_array($body)) {
             if (isset($body['error']) && is_string($body['error'])) {
                 $code = $body['error'];
+            } elseif (isset($body['error']) && is_array($body['error'])) {
+                // API zarfı: {"error": {"code": "...", "message": "..."}}
+                if (isset($body['error']['code']) && is_string($body['error']['code'])) {
+                    $code = $body['error']['code'];
+                }
+                if (isset($body['error']['message']) && is_string($body['error']['message'])) {
+                    $message = $body['error']['message'];
+                }
             }
             if (isset($body['message']) && is_string($body['message'])) {
                 $message = $body['message'];

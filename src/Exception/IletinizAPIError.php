@@ -12,7 +12,7 @@ class IletinizAPIError extends IletinizError
     public function __construct(
         string $message,
         public readonly int $status,
-        public readonly ?string $code = null,
+        public readonly ?string $apiCode = null,
         public readonly array|string|null $body = null,
         public readonly ?string $requestId = null,
     ) {
@@ -24,14 +24,13 @@ class IletinizAPIError extends IletinizError
         return $this->status;
     }
 
-    public function getCode(): string
-    {
-        return $this->code ?? '';
-    }
-
+    /**
+     * API hata kodu (ör. `quota_exceeded`, `whatsapp_template_not_approved`).
+     * Not: `Exception::getCode()` final olduğundan ayrı metot olarak sunulur.
+     */
     public function getApiCode(): ?string
     {
-        return $this->code;
+        return $this->apiCode;
     }
 
     /**

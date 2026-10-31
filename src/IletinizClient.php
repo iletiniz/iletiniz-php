@@ -10,10 +10,13 @@ use Iletiniz\Http\HttpClient;
 use Iletiniz\Http\TransportInterface;
 use Iletiniz\Resource\HealthResource;
 use Iletiniz\Resource\MessagesResource;
+use Iletiniz\Resource\PartnerResource;
+use Iletiniz\Resource\RemindersResource;
+use Iletiniz\Resource\ScheduledResource;
 
 final class IletinizClient
 {
-    public const VERSION = '0.1.0';
+    public const VERSION = '0.2.0';
 
     private const DEFAULT_BASE_URL = 'https://api.iletiniz.com';
     private const DEFAULT_TIMEOUT_MS = 30000;
@@ -22,6 +25,9 @@ final class IletinizClient
 
     public readonly MessagesResource $messages;
     public readonly HealthResource $health;
+    public readonly ScheduledResource $scheduled;
+    public readonly RemindersResource $reminders;
+    public readonly PartnerResource $partner;
 
     /**
      * @param array{
@@ -69,6 +75,9 @@ final class IletinizClient
 
         $this->messages = new MessagesResource($http);
         $this->health = new HealthResource($http);
+        $this->scheduled = new ScheduledResource($http);
+        $this->reminders = new RemindersResource($http);
+        $this->partner = new PartnerResource($http);
     }
 
     private static function readEnv(string $name): ?string

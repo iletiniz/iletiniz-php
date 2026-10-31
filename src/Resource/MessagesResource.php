@@ -17,19 +17,26 @@ final class MessagesResource
     }
 
     /**
-     * Tek bir SMS mesajı gönderir.
+     * Tek bir mesaj gönderir (SMS, Telegram veya WhatsApp).
      *
-     * `body` veya `template` alanlarından **tam olarak biri** verilmelidir.
+     * `body`, `template` veya `whatsappTemplate` alanlarından **tam olarak biri** verilmelidir.
      * `variables` yalnızca `template` ile birlikte kullanılabilir.
+     * `sender`: SMS'te gönderici başlığı, WhatsApp'ta gönderici numaranın Meta `phone_number_id` değeri.
+     * `scheduledAt` (ISO 8601 dizesi veya DateTimeInterface) verilirse mesaj şimdi gönderilmez;
+     * yanıt `{scheduled_id, status: 'scheduled', kind, scheduled_at}` olur.
      *
      * @param array{
      *     to: string,
      *     body?: string,
      *     template?: string,
      *     variables?: array<string, string|int|float>,
+     *     whatsappTemplate?: array{name: string, language: string, components?: list<array<string, mixed>>},
      *     sender?: string,
      *     provider?: string,
-     *     iys?: bool,
+     *     fallback?: list<string>,
+     *     iys?: bool|'bilgilendirme'|'bireysel'|'tacir',
+     *     idempotencyKey?: string,
+     *     scheduledAt?: string|\DateTimeInterface,
      * } $params
      *
      * @return array{
@@ -39,9 +46,12 @@ final class MessagesResource
      *     provider: string,
      *     template?: string,
      *     template_key?: string,
+     *     whatsapp_template?: string,
      *     error?: array{code: string, message: string},
+     *     attempts?: list<array{provider: string, status: 'sent'|'failed', error?: array{code: string, message: string}}>,
+     *     sandbox?: true,
      *     created_at: string,
-     * }
+     * }|array{scheduled_id: int, status: 'scheduled', kind: 'single', scheduled_at: string, sandbox?: true}
      */
     public function send(array $params, ?RequestOptions $options = null): array
     {
@@ -53,11 +63,14 @@ final class MessagesResource
          *     provider: string,
          *     template?: string,
          *     template_key?: string,
+         *     whatsapp_template?: string,
          *     error?: array{code: string, message: string},
+         *     attempts?: list<array{provider: string, status: 'sent'|'failed', error?: array{code: string, message: string}}>,
+         *     sandbox?: true,
          *     created_at: string,
-         * } $res
+         * }|array{scheduled_id: int, status: 'scheduled', kind: 'single', scheduled_at: string, sandbox?: true} $res
          */
-        $res = $this->http->request('POST', '/v1/messages', [], self::stripNulls($params), $options);
+        $res = $this->http->request('POST', '/v1/messages', [], Util::prepare($params), $options);
         return $res;
     }
 
@@ -65,17 +78,25 @@ final class MessagesResource
      * Tek istekte birden fazla mesaj gönderir (en fazla 200 öğe).
      *
      * - Üst seviye `template` verildiyse her item'da `body` olmamalı, yalnızca `variables` opsiyoneldir.
-     * - Üst seviye `template` yoksa her item'da `body` zorunludur, `variables` kullanılamaz.
+     * - Üst seviye `whatsappTemplate` verildiyse item'larda `body`/`variables` olmamalı; alıcı başına
+     *   değişkenler `items[].whatsappComponents` ile verilir (üst seviye `components` varsayılandır).
+     * - İkisi de yoksa her item'da `body` zorunludur, `variables` kullanılamaz.
+     * - `scheduledAt` verilirse yanıt `{scheduled_id, status: 'scheduled', kind: 'bulk', scheduled_at}` olur.
      *
      * @param array{
      *     provider?: string,
      *     sender?: string,
      *     template?: string,
-     *     iys?: bool,
+     *     whatsappTemplate?: array{name: string, language: string, components?: list<array<string, mixed>>},
+     *     fallback?: list<string>,
+     *     iys?: bool|'bilgilendirme'|'bireysel'|'tacir',
+     *     idempotencyKey?: string,
+     *     scheduledAt?: string|\DateTimeInterface,
      *     items: list<array{
      *         to: string,
      *         body?: string,
      *         variables?: array<string, string|int|float>,
+     *         whatsappComponents?: list<array<string, mixed>>,
      *     }>,
      * } $params
      *
@@ -86,21 +107,24 @@ final class MessagesResource
      *     provider: string,
      *     template?: string,
      *     template_key?: string,
+     *     whatsapp_template?: string,
+     *     sandbox?: true,
      *     created_at: string,
      *     results: list<array{
      *         to: string,
      *         status: 'sent'|'failed',
      *         job_id?: string,
      *         error?: array{code: string, message: string},
+     *         delivered_via?: string,
      *     }>,
-     * }
+     * }|array{scheduled_id: int, status: 'scheduled', kind: 'bulk', scheduled_at: string, sandbox?: true}
      */
     public function sendBulk(array $params, ?RequestOptions $options = null): array
     {
         $this->validateBulkParams($params);
-        $clean = self::stripNulls($params);
+        $clean = Util::prepare($params);
         if (isset($clean['items']) && is_array($clean['items'])) {
-            $clean['items'] = array_map(static fn (array $item): array => self::stripNulls($item), $clean['items']);
+            $clean['items'] = array_map(static fn (array $item): array => Util::stripNulls($item), $clean['items']);
         }
         /** @var array{
          *     total: int,
@@ -109,14 +133,17 @@ final class MessagesResource
          *     provider: string,
          *     template?: string,
          *     template_key?: string,
+         *     whatsapp_template?: string,
+         *     sandbox?: true,
          *     created_at: string,
          *     results: list<array{
          *         to: string,
          *         status: 'sent'|'failed',
          *         job_id?: string,
          *         error?: array{code: string, message: string},
+         *         delivered_via?: string,
          *     }>,
-         * } $res
+         * }|array{scheduled_id: int, status: 'scheduled', kind: 'bulk', scheduled_at: string, sandbox?: true} $res
          */
         $res = $this->http->request('POST', '/v1/messages/bulk', [], $clean, $options);
         return $res;
@@ -188,8 +215,13 @@ final class MessagesResource
         $hasBody = isset($params['body']) && $params['body'] !== '' && $params['body'] !== null;
         $hasTemplate = isset($params['template']) && $params['template'] !== '' && $params['template'] !== null;
 
-        if ($hasBody === $hasTemplate) {
-            throw new IletinizError("'body' veya 'template' alanlarından tam olarak biri zorunludur.");
+        $hasWa = isset($params['whatsappTemplate']);
+
+        if (((int) $hasBody + (int) $hasTemplate + (int) $hasWa) !== 1) {
+            throw new IletinizError("'body', 'template' veya 'whatsappTemplate' alanlarından tam olarak biri zorunludur.");
+        }
+        if ($hasWa) {
+            self::validateWhatsappTemplate($params['whatsappTemplate']);
         }
         if (isset($params['variables']) && !$hasTemplate) {
             throw new IletinizError("'variables' yalnızca 'template' ile birlikte kullanılabilir.");
@@ -216,6 +248,13 @@ final class MessagesResource
         }
 
         $usingTemplate = isset($params['template']) && $params['template'] !== '' && $params['template'] !== null;
+        $usingWa = isset($params['whatsappTemplate']);
+        if ($usingTemplate && $usingWa) {
+            throw new IletinizError("'template' ve 'whatsappTemplate' birlikte kullanılamaz.");
+        }
+        if ($usingWa) {
+            self::validateWhatsappTemplate($params['whatsappTemplate']);
+        }
 
         $i = 0;
         foreach ($items as $item) {
@@ -227,7 +266,14 @@ final class MessagesResource
                 throw new IletinizError(sprintf('items[%d].to 1-64 karakter arasında olmalıdır.', $i));
             }
 
-            if ($usingTemplate) {
+            if (array_key_exists('whatsappComponents', $item) && !$usingWa) {
+                throw new IletinizError(sprintf("items[%d].whatsappComponents yalnızca 'whatsappTemplate' ile kullanılabilir.", $i));
+            }
+            if ($usingWa) {
+                if (array_key_exists('body', $item) || array_key_exists('variables', $item)) {
+                    throw new IletinizError(sprintf("'whatsappTemplate' verildi: items[%d].body ve variables kullanılamaz.", $i));
+                }
+            } elseif ($usingTemplate) {
                 if (array_key_exists('body', $item)) {
                     throw new IletinizError(sprintf("Üst seviye 'template' verildi: items[%d].body kullanılamaz.", $i));
                 }
@@ -244,12 +290,18 @@ final class MessagesResource
         }
     }
 
-    /**
-     * @param array<string, mixed> $arr
-     * @return array<string, mixed>
-     */
-    private static function stripNulls(array $arr): array
+    private static function validateWhatsappTemplate(mixed $t): void
     {
-        return array_filter($arr, static fn (mixed $v): bool => $v !== null);
+        if (!is_array($t)) {
+            throw new IletinizError("'whatsappTemplate' bir nesne olmalıdır.");
+        }
+        $name = $t['name'] ?? null;
+        if (!is_string($name) || preg_match('/^[a-z0-9_]{1,512}$/', $name) !== 1) {
+            throw new IletinizError("'whatsappTemplate.name' yalnızca a-z, 0-9 ve _ içerebilir.");
+        }
+        $lang = $t['language'] ?? null;
+        if (!is_string($lang) || preg_match('/^[a-z]{2,3}(_[A-Z]{2,4})?$/', $lang) !== 1) {
+            throw new IletinizError("'whatsappTemplate.language' geçersiz (ör. tr, en_US).");
+        }
     }
 }

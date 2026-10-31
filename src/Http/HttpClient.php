@@ -30,6 +30,7 @@ class HttpClient
      * @param 'GET'|'POST'|'PUT'|'DELETE'|'PATCH' $method
      * @param array<string, string|int|float|bool|null> $query
      * @param mixed $body
+     * @param bool $retry false → idempotent olmayan istek; ağ/5xx hatasında yeniden denenmez.
      * @return mixed
      */
     public function request(
@@ -38,6 +39,7 @@ class HttpClient
         array $query = [],
         mixed $body = null,
         ?RequestOptions $options = null,
+        bool $retry = true,
     ): mixed {
         $url = $this->buildUrl($path, $query);
 
@@ -66,14 +68,14 @@ class HttpClient
             try {
                 $response = $this->transport->send($method, $url, $headers, $payload, $timeoutMs);
             } catch (IletinizTimeoutError $e) {
-                if ($this->shouldRetry(null, $attempt)) {
+                if ($retry && $this->shouldRetry(null, $attempt)) {
                     $attempt++;
                     $this->sleep($this->backoffMs($attempt, null));
                     continue;
                 }
                 throw $e;
             } catch (IletinizConnectionError $e) {
-                if ($this->shouldRetry(null, $attempt)) {
+                if ($retry && $this->shouldRetry(null, $attempt)) {
                     $attempt++;
                     $this->sleep($this->backoffMs($attempt, null));
                     continue;
@@ -93,7 +95,7 @@ class HttpClient
                 return $decoded;
             }
 
-            if ($this->shouldRetry($status, $attempt)) {
+            if ($retry && $this->shouldRetry($status, $attempt)) {
                 $attempt++;
                 $this->sleep($this->backoffMs($attempt, $response->getHeader('retry-after')));
                 continue;
