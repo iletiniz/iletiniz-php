@@ -60,37 +60,37 @@ switch ($event['event']) {
             break; // Temsilci ilgileniyor, bot cevap vermez.
         }
 
-        // Dekont gibi belge/görsel geldiyse indir (Meta 7 gün saklar).
+        // Fatura, fotoğraf gibi bir dosya geldiyse indir (Meta 7 gün saklar).
         if ($data['media'] !== null) {
             $client->whatsapp->saveMedia($data['wamid'], sys_get_temp_dir() . '/' . basename($data['media']['filename'] ?? $data['wamid']));
         }
 
         $choice = $data['interactive']['id'] ?? $data['button']['payload'] ?? null;
         $reply = match ($choice) {
-            'aidat' => [
+            'siparis' => [
                 'type' => 'cta_url',
-                'body' => 'Kasım aidatınız: 1.500 TL. Son ödeme: 10 Aralık.',
-                'displayText' => 'Ödeme yap',
-                'url' => 'https://ornek-kulup.com/odeme',
+                'body' => 'Siparişiniz (#10482) kargoya verildi.',
+                'displayText' => 'Kargoyu takip et',
+                'url' => 'https://ornek.com/kargo/10482',
             ],
-            'antrenman' => [
+            'yardim' => [
                 'type' => 'list',
-                'body' => 'Hangi grubun saatlerini görmek istersiniz?',
-                'buttonText' => 'Gruplar',
-                'sections' => [['title' => 'Futbol', 'rows' => [
-                    ['id' => 'u10', 'title' => 'U10'],
-                    ['id' => 'u12', 'title' => 'U12'],
+                'body' => 'Hangi konuda yardım istersiniz?',
+                'buttonText' => 'Konular',
+                'sections' => [['title' => 'Siparişler', 'rows' => [
+                    ['id' => 'iade', 'title' => 'İade talebi'],
+                    ['id' => 'fatura', 'title' => 'Faturalarım'],
                 ]]],
             ],
-            'u10' => ['type' => 'text', 'text' => 'U10: Pazartesi ve Çarşamba 17:00.'],
-            'u12' => ['type' => 'text', 'text' => 'U12: Salı ve Perşembe 17:00.'],
+            'iade' => ['type' => 'text', 'text' => 'İade talebinizi https://ornek.com/iade adresinden oluşturabilirsiniz.'],
+            'fatura' => ['type' => 'text', 'text' => 'Faturalarınıza https://ornek.com/hesabim/faturalar adresinden ulaşabilirsiniz.'],
             'temsilci' => ['type' => 'text', 'text' => 'Bir temsilcimiz en kısa sürede size yazacak.'],
             default => [
                 'type' => 'buttons',
                 'body' => 'Merhaba, size nasıl yardımcı olabiliriz?',
                 'buttons' => [
-                    ['id' => 'aidat', 'title' => 'Aidat durumu'],
-                    ['id' => 'antrenman', 'title' => 'Antrenman saatleri'],
+                    ['id' => 'siparis', 'title' => 'Sipariş durumu'],
+                    ['id' => 'yardim', 'title' => 'Yardım konuları'],
                     ['id' => 'temsilci', 'title' => 'Temsilciye bağlan'],
                 ],
             ],

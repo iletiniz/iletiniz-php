@@ -56,7 +56,7 @@ final class WhatsappTest extends TestCase
             'whatsappMessage' => [
                 'type' => 'buttons',
                 'body' => 'Ne yapmak istersiniz?',
-                'buttons' => [['id' => 'aidat', 'title' => 'Aidat durumu']],
+                'buttons' => [['id' => 'siparis', 'title' => 'Sipariş durumu']],
                 'replyTo' => 'wamid.IN1',
             ],
         ]);

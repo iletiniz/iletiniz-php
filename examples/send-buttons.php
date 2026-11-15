@@ -17,12 +17,12 @@ $result = $client->messages->send([
     'provider' => 'whatsapp',
     'whatsappMessage' => [
         'type' => 'buttons',
-        'header' => ['type' => 'text', 'text' => 'Blue Academy'],
+        'header' => ['type' => 'text', 'text' => 'Örnek Mağaza'],
         'body' => 'Merhaba, size nasıl yardımcı olabiliriz?',
         'footer' => 'Bir seçenek seçin',
         'buttons' => [
-            ['id' => 'aidat', 'title' => 'Aidat durumu'],
-            ['id' => 'antrenman', 'title' => 'Antrenman saatleri'],
+            ['id' => 'siparis', 'title' => 'Sipariş durumu'],
+            ['id' => 'yardim', 'title' => 'Yardım konuları'],
             ['id' => 'temsilci', 'title' => 'Temsilciye bağlan'],
         ],
     ],
@@ -36,28 +36,28 @@ $client->messages->send([
     'provider' => 'whatsapp',
     'whatsappMessage' => [
         'type' => 'list',
-        'body' => 'Antrenman grubunuzu seçin.',
-        'buttonText' => 'Gruplar',
+        'body' => 'Hangi konuda yardım istersiniz?',
+        'buttonText' => 'Konular',
         'sections' => [
-            ['title' => 'Futbol', 'rows' => [
-                ['id' => 'u10', 'title' => 'U10', 'description' => 'Pazartesi, Çarşamba 17:00'],
-                ['id' => 'u12', 'title' => 'U12', 'description' => 'Salı, Perşembe 17:00'],
+            ['title' => 'Siparişler', 'rows' => [
+                ['id' => 'kargo', 'title' => 'Kargo takibi', 'description' => 'Siparişiniz nerede?'],
+                ['id' => 'iade', 'title' => 'İade talebi', 'description' => '14 gün içinde ücretsiz iade'],
             ]],
-            ['title' => 'Basketbol', 'rows' => [
-                ['id' => 'b12', 'title' => 'B12', 'description' => 'Cumartesi 10:00'],
+            ['title' => 'Hesabım', 'rows' => [
+                ['id' => 'fatura', 'title' => 'Faturalarım', 'description' => 'Son 12 ayın faturaları'],
             ]],
         ],
     ],
 ]);
 
-// Bağlantı butonu (ör. ödeme sayfası).
+// Bağlantı butonu (ör. kargo takip ya da ödeme sayfası).
 $client->messages->send([
     'to' => '+905551234567',
     'provider' => 'whatsapp',
     'whatsappMessage' => [
         'type' => 'cta_url',
-        'body' => 'Kasım aidatınız: 1.500 TL',
-        'displayText' => 'Ödeme yap',
-        'url' => 'https://ornek-kulup.com/odeme/123',
+        'body' => 'Siparişiniz (#10482) kargoya verildi.',
+        'displayText' => 'Kargoyu takip et',
+        'url' => 'https://ornek.com/kargo/10482',
     ],
 ]);

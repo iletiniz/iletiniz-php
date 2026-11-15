@@ -211,7 +211,7 @@ $client->messages->send([
         'type' => 'buttons',
         'body' => 'Merhaba, size nasıl yardımcı olabiliriz?',
         'buttons' => [
-            ['id' => 'aidat', 'title' => 'Aidat durumu'],
+            ['id' => 'siparis', 'title' => 'Sipariş durumu'],
             ['id' => 'temsilci', 'title' => 'Temsilciye bağlan'],
         ],
         'replyTo' => $wamid, // isteğe bağlı: yanıtlanan mesaj
