@@ -13,10 +13,11 @@ use Iletiniz\Resource\MessagesResource;
 use Iletiniz\Resource\PartnerResource;
 use Iletiniz\Resource\RemindersResource;
 use Iletiniz\Resource\ScheduledResource;
+use Iletiniz\Resource\WhatsappResource;
 
 final class IletinizClient
 {
-    public const VERSION = '0.2.0';
+    public const VERSION = '0.3.0';
 
     private const DEFAULT_BASE_URL = 'https://api.iletiniz.com';
     private const DEFAULT_TIMEOUT_MS = 30000;
@@ -28,6 +29,7 @@ final class IletinizClient
     public readonly ScheduledResource $scheduled;
     public readonly RemindersResource $reminders;
     public readonly PartnerResource $partner;
+    public readonly WhatsappResource $whatsapp;
 
     /**
      * @param array{
@@ -78,6 +80,7 @@ final class IletinizClient
         $this->scheduled = new ScheduledResource($http);
         $this->reminders = new RemindersResource($http);
         $this->partner = new PartnerResource($http);
+        $this->whatsapp = new WhatsappResource($http);
     }
 
     private static function readEnv(string $name): ?string

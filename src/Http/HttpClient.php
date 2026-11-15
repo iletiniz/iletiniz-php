@@ -41,13 +41,54 @@ class HttpClient
         ?RequestOptions $options = null,
         bool $retry = true,
     ): mixed {
+        $response = $this->execute($method, $path, $query, $body, $options, $retry, 'application/json');
+        if ($response->status === 204 || $response->body === '') {
+            return null;
+        }
+        $decoded = json_decode($response->body, true);
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            throw new IletinizConnectionError('Sunucudan geçersiz JSON döndü.');
+        }
+        return $decoded;
+    }
+
+    /**
+     * Ham (ikili) yanıt döner: medya indirme gibi JSON olmayan uçlar için.
+     * Hata yanıtları `request()` ile aynı istisnalara çevrilir.
+     *
+     * @param 'GET'|'POST'|'PUT'|'DELETE'|'PATCH' $method
+     * @param array<string, string|int|float|bool|null> $query
+     */
+    public function requestRaw(
+        string $method,
+        string $path,
+        array $query = [],
+        ?RequestOptions $options = null,
+        bool $retry = true,
+    ): HttpResponse {
+        return $this->execute($method, $path, $query, null, $options, $retry, '*/*');
+    }
+
+    /**
+     * @param 'GET'|'POST'|'PUT'|'DELETE'|'PATCH' $method
+     * @param array<string, string|int|float|bool|null> $query
+     */
+    private function execute(
+        string $method,
+        string $path,
+        array $query,
+        mixed $body,
+        ?RequestOptions $options,
+        bool $retry,
+        string $accept,
+    ): HttpResponse {
         $url = $this->buildUrl($path, $query);
 
         $headers = array_merge(
             $this->defaultHeaders,
             [
                 'Authorization' => 'Bearer ' . $this->apiKey,
-                'Accept' => 'application/json',
+                'Accept' => $accept,
             ],
             $options?->headers ?? [],
         );
@@ -85,14 +126,7 @@ class HttpClient
 
             $status = $response->status;
             if ($status >= 200 && $status < 300) {
-                if ($status === 204 || $response->body === '') {
-                    return null;
-                }
-                $decoded = json_decode($response->body, true);
-                if (json_last_error() !== JSON_ERROR_NONE) {
-                    throw new IletinizConnectionError('Sunucudan geçersiz JSON döndü.');
-                }
-                return $decoded;
+                return $response;
             }
 
             if ($retry && $this->shouldRetry($status, $attempt)) {

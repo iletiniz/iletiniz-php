@@ -80,6 +80,8 @@ SDK, public API yüzeyini kapsar:
 | `$client->partner->revokeApiKey($id, $keyId)`    | `DELETE /v1/partner/accounts/{id}/api-keys/{keyId}` |
 | `$client->partner->transferQuota($id, $amount)`  | `POST /v1/partner/accounts/{id}/quota-transfers` |
 | `$client->partner->createWhatsappSignupLink($id)` | `POST /v1/partner/accounts/{id}/whatsapp-signup` |
+| `$client->whatsapp->downloadMedia($wamid)` / `saveMedia($wamid, $path)` | `GET /v1/whatsapp/messages/{wamid}/media` |
+| `Webhook::verify($payload, $headers, $secret)` / `Webhook::parse(...)` | (yerel imza doğrulaması) |
 
 ### Tek mesaj göndermek
 
@@ -137,7 +139,7 @@ $client->messages->send([
 ]);
 ```
 
-`body` ve `template` aynı anda kullanılamaz; tam olarak biri zorunludur. `variables` yalnızca `template` ile birlikte verilebilir.
+`body`, `template`, `whatsappTemplate` ve `whatsappMessage` alanlarından tam olarak biri zorunludur. `variables` yalnızca `template` ile birlikte verilebilir.
 
 ### Toplu gönderim
 
@@ -196,6 +198,67 @@ $client->messages->sendBulk([
     ],
 ]);
 ```
+
+### WhatsApp oturum mesajı (buton, liste, medya)
+
+Son 24 saat içinde size yazmış bir kişiye şablonsuz mesaj göndermek için `whatsappMessage` kullanın. Sohbet botu yanıtları bu yolla gider. Pencere dışındaysa API `reengagement_window_expired` hatası döner; o durumda onaylı şablon gönderin. `whatsappMessage` zamanlanamaz ve toplu gönderimde kullanılamaz.
+
+```php
+$client->messages->send([
+    'to' => '+905551234567',
+    'provider' => 'whatsapp',
+    'whatsappMessage' => [
+        'type' => 'buttons',
+        'body' => 'Merhaba, size nasıl yardımcı olabiliriz?',
+        'buttons' => [
+            ['id' => 'aidat', 'title' => 'Aidat durumu'],
+            ['id' => 'temsilci', 'title' => 'Temsilciye bağlan'],
+        ],
+        'replyTo' => $wamid, // isteğe bağlı: yanıtlanan mesaj
+    ],
+]);
+```
+
+| `type` | Alanlar |
+| --- | --- |
+| `text` | `text` (en çok 4096), `previewUrl` |
+| `buttons` | `body` (1024), `buttons` 1-3 × `id` (256) + `title` (20), `header`, `footer` (60) |
+| `list` | `body` (4096), `buttonText` (20), `sections` 1-10 × `title` (24) + `rows`; toplam en çok 10 satır, satır `id` (200), `title` (24), `description` (72); `header` düz metin (60) |
+| `cta_url` | `body` (1024), `displayText` (20), `url`, `header`, `footer` |
+| `image`, `video` | `link` (https), `caption` (1024) |
+| `document` | `link` (https), `caption`, `filename` |
+| `audio` | `link` (https) |
+| `location` | `latitude`, `longitude`, `name`, `address` |
+
+`buttons` ve `cta_url` başlığı `['type' => 'text', 'text' => '...']` ya da `['type' => 'image' | 'video' | 'document', 'link' => 'https://...']` olabilir. Tam örnek: [`examples/send-buttons.php`](examples/send-buttons.php).
+
+### WhatsApp gelen mesajlar (webhook)
+
+Panelde webhook endpoint'iniz için "WhatsApp mesajı alındı" (`message.received`) ve "Telefondan gönderildi" (`message.echo`) olaylarını açıkça seçin. Bu iki olay mesaj içeriğini taşıdığı için yalnız seçilirse gönderilir.
+
+```php
+use Iletiniz\Webhook;
+
+$payload = file_get_contents('php://input');
+$event = Webhook::parse($payload, $_SERVER, getenv('ILETINIZ_WEBHOOK_SECRET')); // imza geçersizse IletinizError
+
+if ($event['event'] === 'message.received') {
+    $data = $event['data'];
+    $from = $data['from'];                                   // +905551234567
+    $choice = $data['interactive']['id'] ?? $data['text'];   // buton/liste seçimi ya da metin
+    if ($data['media'] !== null) {
+        $file = $client->whatsapp->downloadMedia($data['wamid']); // ['content', 'contentType', 'filename']
+    }
+}
+```
+
+- `message.received`: `wamid`, `from`, `profile_name`, `type`, `text`, `interactive` (`button_reply` / `list_reply`: `id`, `title`), `button` (şablon hızlı yanıtı: `payload`, `text`), `media` (`id`, `mime_type`, `caption`, `filename`), `location`, `context` (yanıtlanan mesajın `wamid`'i ve API'den gönderildiyse `job_id`'si), `sent_at`, `whatsapp` (Meta'nın ham nesnesi).
+- `message.echo`: WhatsApp Business uygulamasına bağlı numaradan telefonla gönderilen mesaj (`to`, `source: business_app`). Bir temsilci telefondan devraldığında botu susturmak için kullanın.
+- Olaylar sırasız ve en az bir kez gelebilir; `id` ile tekilleştirin, `sent_at` ile sıralayın.
+- Medya Meta'da 7 gün saklanır; sonrasında `downloadMedia` 410 (`media_expired`) döner. `saveMedia($wamid, $path)` doğrudan dosyaya yazar.
+- `Webhook::verify($payload, $headers, $secret)` yalnız true/false döner; varsayılan saat toleransı 300 saniyedir.
+
+Tam sohbet botu örneği: [`examples/chatbot-webhook.php`](examples/chatbot-webhook.php).
 
 ### Zamanlanmış gönderim
 

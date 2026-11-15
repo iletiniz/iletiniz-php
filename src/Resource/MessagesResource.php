@@ -19,8 +19,10 @@ final class MessagesResource
     /**
      * Tek bir mesaj gönderir (SMS, Telegram veya WhatsApp).
      *
-     * `body`, `template` veya `whatsappTemplate` alanlarından **tam olarak biri** verilmelidir.
-     * `variables` yalnızca `template` ile birlikte kullanılabilir.
+     * `body`, `template`, `whatsappTemplate` veya `whatsappMessage` alanlarından **tam olarak biri**
+     * verilmelidir. `variables` yalnızca `template` ile birlikte kullanılabilir.
+     * `whatsappMessage`: son 24 saat içinde yazmış kişiye şablonsuz oturum mesajı (metin, buton,
+     * liste, bağlantı butonu, görsel, video, belge, ses, konum); zamanlanamaz.
      * `sender`: SMS'te gönderici başlığı, WhatsApp'ta gönderici numaranın Meta `phone_number_id` değeri.
      * `scheduledAt` (ISO 8601 dizesi veya DateTimeInterface) verilirse mesaj şimdi gönderilmez;
      * yanıt `{scheduled_id, status: 'scheduled', kind, scheduled_at}` olur.
@@ -31,6 +33,27 @@ final class MessagesResource
      *     template?: string,
      *     variables?: array<string, string|int|float>,
      *     whatsappTemplate?: array{name: string, language: string, components?: list<array<string, mixed>>},
+     *     whatsappMessage?: array{
+     *         type: 'text'|'buttons'|'list'|'cta_url'|'image'|'video'|'document'|'audio'|'location',
+     *         text?: string,
+     *         previewUrl?: bool,
+     *         header?: string|array{type: 'text'|'image'|'video'|'document', text?: string, link?: string},
+     *         body?: string,
+     *         footer?: string,
+     *         buttons?: list<array{id: string, title: string}>,
+     *         buttonText?: string,
+     *         sections?: list<array{title: string, rows: list<array{id: string, title: string, description?: string}>}>,
+     *         displayText?: string,
+     *         url?: string,
+     *         link?: string,
+     *         caption?: string,
+     *         filename?: string,
+     *         latitude?: float,
+     *         longitude?: float,
+     *         name?: string,
+     *         address?: string,
+     *         replyTo?: string,
+     *     },
      *     sender?: string,
      *     provider?: string,
      *     fallback?: list<string>,
@@ -52,6 +75,9 @@ final class MessagesResource
      *     sandbox?: true,
      *     created_at: string,
      * }|array{scheduled_id: int, status: 'scheduled', kind: 'single', scheduled_at: string, sandbox?: true}
+     *
+     * Not: `whatsappMessage.header` buton ve bağlantı butonunda nesne
+     * (`['type' => 'text', 'text' => ...]` ya da `['type' => 'image', 'link' => ...]`), listede düz metindir.
      */
     public function send(array $params, ?RequestOptions $options = null): array
     {
@@ -216,12 +242,23 @@ final class MessagesResource
         $hasTemplate = isset($params['template']) && $params['template'] !== '' && $params['template'] !== null;
 
         $hasWa = isset($params['whatsappTemplate']);
+        $hasWaMessage = isset($params['whatsappMessage']);
 
-        if (((int) $hasBody + (int) $hasTemplate + (int) $hasWa) !== 1) {
-            throw new IletinizError("'body', 'template' veya 'whatsappTemplate' alanlarından tam olarak biri zorunludur.");
+        if (((int) $hasBody + (int) $hasTemplate + (int) $hasWa + (int) $hasWaMessage) !== 1) {
+            throw new IletinizError(
+                "'body', 'template', 'whatsappTemplate' veya 'whatsappMessage' alanlarından tam olarak biri zorunludur.",
+            );
         }
         if ($hasWa) {
             self::validateWhatsappTemplate($params['whatsappTemplate']);
+        }
+        if ($hasWaMessage) {
+            if (isset($params['scheduledAt'])) {
+                throw new IletinizError(
+                    "'whatsappMessage' zamanlanamaz (24 saat penceresine bağlı). Zamanlı gönderim için 'whatsappTemplate' kullanın.",
+                );
+            }
+            self::validateWhatsappMessage($params['whatsappMessage']);
         }
         if (isset($params['variables']) && !$hasTemplate) {
             throw new IletinizError("'variables' yalnızca 'template' ile birlikte kullanılabilir.");
@@ -287,6 +324,47 @@ final class MessagesResource
                 }
             }
             $i++;
+        }
+    }
+
+    /**
+     * Temel yapı ve Meta sayı sınırları (buton 1-3, liste toplam 10 satır). Uzunluk ve
+     * diğer kuralları API doğrular (400 `validation_error`).
+     */
+    private static function validateWhatsappMessage(mixed $m): void
+    {
+        if (!is_array($m)) {
+            throw new IletinizError("'whatsappMessage' bir nesne olmalıdır.");
+        }
+        $type = $m['type'] ?? null;
+        $types = ['text', 'buttons', 'list', 'cta_url', 'image', 'video', 'document', 'audio', 'location'];
+        if (!is_string($type) || !in_array($type, $types, true)) {
+            throw new IletinizError(sprintf("'whatsappMessage.type' şunlardan biri olmalıdır: %s.", implode(', ', $types)));
+        }
+        if ($type === 'buttons') {
+            $buttons = $m['buttons'] ?? null;
+            if (!is_array($buttons) || count($buttons) < 1 || count($buttons) > 3) {
+                throw new IletinizError("'whatsappMessage.buttons' 1-3 buton içermelidir.");
+            }
+        }
+        if ($type === 'list') {
+            $sections = $m['sections'] ?? null;
+            if (!is_array($sections) || count($sections) < 1 || count($sections) > 10) {
+                throw new IletinizError("'whatsappMessage.sections' 1-10 bölüm içermelidir.");
+            }
+            $rows = 0;
+            foreach ($sections as $s) {
+                $rows += is_array($s) && is_array($s['rows'] ?? null) ? count($s['rows']) : 0;
+            }
+            if ($rows < 1 || $rows > 10) {
+                throw new IletinizError("'whatsappMessage' listesinde toplam 1-10 satır olmalıdır.");
+            }
+        }
+        if (in_array($type, ['image', 'video', 'document', 'audio'], true)) {
+            $link = $m['link'] ?? null;
+            if (!is_string($link) || !str_starts_with($link, 'https://')) {
+                throw new IletinizError("'whatsappMessage.link' https:// ile başlayan bir adres olmalıdır.");
+            }
         }
     }
 

@@ -8,7 +8,14 @@ Sürümleme / Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.h
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-15
+
 ### Added
+- `whatsappMessage`: WhatsApp oturum mesajı (metin, buton, liste, bağlantı butonu, görsel, video, belge, ses, konum, `replyTo`). `body` / `template` / `whatsappTemplate` ile birlikte kullanılamaz, zamanlanamaz.
+- `$client->whatsapp->downloadMedia($wamid)` ve `saveMedia($wamid, $path)`: gelen WhatsApp mesajının medyasını indirme.
+- `Iletiniz\Webhook::verify()` ve `Webhook::parse()`: webhook imza doğrulaması (`$_SERVER`, `getallheaders()` ve PSR-7 başlıkları).
+- `message.received` / `message.echo` webhook olayları için README bölümü ve `examples/chatbot-webhook.php`, `examples/send-buttons.php`.
+- `HttpClient::requestRaw()`: JSON olmayan (ikili) yanıtlar için.
 - `$client->partner->listApiKeys($id)` ve `$client->partner->revokeApiKey($id, $keyId)`: alt hesabın API anahtarlarını listeleme ve iptal etme.
 
 ## [0.2.0] - 2026-10-31
